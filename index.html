@@ -4,9 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vibe Tracker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/geographiclib-geodesic@1.52.0/geographiclib-geodesic.min.js"></script>
+
+  <!-- Load GeographicLib and expose Geodesic globally -->
+  <script type="module">
+    import { Geodesic } from 'https://cdn.jsdelivr.net/npm/geographiclib-geodesic@1.52.0/+esm';
+    window.Geodesic = Geodesic;
+  </script>
 
   <style>
     body {
@@ -71,11 +76,17 @@
     let lastDistance = null;
     let hasCelebrated = false;
 
-    function getGeodesicDistanceInMeters(lat1, lon1, lat2, lon2) {
-  const result = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2);
-  return result.s12;
-}
+    function waitForGeodesicReady(callback) {
+      if (window.Geodesic) {
+        callback();
+      } else {
+        setTimeout(() => waitForGeodesicReady(callback), 100);
+      }
+    }
 
+    function getGeodesicDistanceInMeters(lat1, lon1, lat2, lon2) {
+      const result = window.Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2);
+      return result.s12;
     }
 
     function getEncouragingMessage(distance) {
@@ -139,15 +150,17 @@
       document.getElementById("status").textContent = `Error: ${error.message}`;
     }
 
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(updateLocation, showError, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000
-      });
-    } else {
-      document.getElementById("status").textContent = "Geolocation is not supported by this browser.";
-    }
+    waitForGeodesicReady(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(updateLocation, showError, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 5000
+        });
+      } else {
+        document.getElementById("status").textContent = "Geolocation is not supported by this browser.";
+      }
+    });
   </script>
 </body>
 </html>
