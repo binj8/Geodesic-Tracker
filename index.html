@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vibe Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/geographiclib@1.52.3/geographiclib.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Orbitron', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #2b1e4a, #3b2b6d);
+      color: #fff;
+      overflow: hidden;
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    #heat-icon {
+      font-size: 4rem;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+    }
+    @keyframes pulseGlowFlame {
+      0% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 100, 0, 0.5); }
+      50% { transform: scale(1.2); text-shadow: 0 0 25px rgba(255, 100, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.5); }
+      100% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 100, 0, 0.5); }
+    }
+    @keyframes pulseGlowFrost {
+      0% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 200, 255, 0.5); }
+      50% { transform: scale(1.2); text-shadow: 0 0 25px rgba(0, 200, 255, 0.8), 0 0 40px rgba(0, 200, 255, 0.5); }
+      100% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 200, 255, 0.5); }
+    }
+    .glow-flame {
+      animation: pulseGlowFlame 2s infinite;
+    }
+    .glow-frost {
+      animation: pulseGlowFrost 2s infinite;
+      color: #00c8ff;
+    }
+    #distance {
+      font-size: 2rem;
+      color: #00f9ff;
+      margin: 1rem 0;
+    }
+    #status, #message {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Vibe Tracker</h1>
+    <div id="heat-icon">🌡️</div>
+    <div id="distance">-- m</div>
+    <div id="status">Getting your location...</div>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const targetLat = 19.11426515101219;
+    const targetLon = 72.86528903659296;
+    let lastDistance = null;
+    let hasCelebrated = false;
+
+    function getGeodesicDistanceInMeters(lat1, lon1, lat2, lon2) {
+      const geod = GeographicLib.Geodesic.WGS84;
+      const result = geod.Inverse(lat1, lon1, lat2, lon2);
+      return result.s12;
+    }
+
+    function getEncouragingMessage(distance) {
+      if (distance > 100) return "You're on the way 🚶‍♀️";
+      if (distance > 50) return "Warming up 🔥";
+      if (distance > 20) return "Almost there! 💫";
+      if (distance > 5) return "🔥 You're right on target!";
+      return "🎯 You've caught the vibe!";
+    }
+
+    function getHeatIcon(distance, lastDistance) {
+      if (lastDistance === null) return "🌡️";
+      return distance < lastDistance ? "🔥" : "❄️";
+    }
+
+    function getGlowClass(distance, lastDistance) {
+      if (lastDistance === null) return "";
+      return distance < lastDistance ? "glow-flame" : "glow-frost";
+    }
+
+    function triggerConfetti() {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    }
+
+    function updateLocation(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const distance = getGeodesicDistanceInMeters(lat, lon, targetLat, targetLon);
+
+      document.getElementById("distance").textContent = `${distance.toFixed(2)} m`;
+      document.getElementById("message").textContent = getEncouragingMessage(distance);
+
+      const icon = getHeatIcon(distance, lastDistance);
+      const glowClass = getGlowClass(distance, lastDistance);
+
+      const heatIconEl = document.getElementById("heat-icon");
+      heatIconEl.textContent = icon;
+      heatIconEl.className = glowClass;
+
+      if (lastDistance === null) {
+        document.getElementById("status").textContent = "Tracking started...";
+      } else if (distance < lastDistance) {
+        document.getElementById("status").textContent = "Warmer 🔥";
+      } else {
+        document.getElementById("status").textContent = "Cooler ❄️";
+      }
+
+      lastDistance = distance;
+
+      if (distance <= 5 && !hasCelebrated) {
+        triggerConfetti();
+        hasCelebrated = true;
+      }
+    }
+
+    function showError(error) {
+      document.getElementById("status").textContent = `Error: ${error.message}`;
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(updateLocation, showError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000
+      });
+    } else {
+      document.getElementById("status").textContent = "Geolocation is not supported by this browser.";
+    }
+  </script>
+</body>
+</html>
