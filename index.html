@@ -6,12 +6,7 @@
   <title>Vibe Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-
-  <!-- Load GeographicLib and expose Geodesic globally -->
-  <script type="module">
-    import { Geodesic } from 'https://cdn.jsdelivr.net/npm/geographiclib-geodesic@1.52.0/+esm';
-    window.Geodesic = Geodesic;
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/geographiclib@2.0.0/geographiclib.min.js"></script>
 
   <style>
     body {
@@ -76,20 +71,13 @@
     let lastDistance = null;
     let hasCelebrated = false;
 
-    function waitForGeodesicReady(callback) {
-      if (window.Geodesic) {
-        callback();
-      } else {
-        setTimeout(() => waitForGeodesicReady(callback), 100);
-      }
-    }
-
-    function getGeodesicDistanceInMeters(lat1, lon1, lat2, lon2) {
-      const result = window.Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2);
+    function getGeodesicDistance(lat1, lon1, lat2, lon2) {
+      const geod = GeographicLib.Geodesic.WGS84;
+      const result = geod.Inverse(lat1, lon1, lat2, lon2);
       return result.s12;
     }
 
-    function getEncouragingMessage(distance) {
+    function getMessage(distance) {
       if (distance > 100) return "You're on the way 🚶‍♀️";
       if (distance > 50) return "Warming up 🔥";
       if (distance > 20) return "Almost there! 💫";
@@ -109,26 +97,26 @@
 
     function triggerConfetti() {
       confetti({
-        particleCount: 120,
-        spread: 80,
+        particleCount: 100,
+        spread: 70,
         origin: { y: 0.6 }
       });
     }
 
-    function updateLocation(position) {
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-      const distance = getGeodesicDistanceInMeters(lat, lon, targetLat, targetLon);
+    function updatePosition(pos) {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
 
+      const distance = getGeodesicDistance(lat, lon, targetLat, targetLon);
       document.getElementById("distance").textContent = `${distance.toFixed(2)} m`;
-      document.getElementById("message").textContent = getEncouragingMessage(distance);
+      document.getElementById("message").textContent = getMessage(distance);
 
       const icon = getHeatIcon(distance, lastDistance);
-      const glowClass = getGlowClass(distance, lastDistance);
+      const glow = getGlowClass(distance, lastDistance);
 
-      const heatIconEl = document.getElementById("heat-icon");
-      heatIconEl.textContent = icon;
-      heatIconEl.className = glowClass;
+      const iconEl = document.getElementById("heat-icon");
+      iconEl.textContent = icon;
+      iconEl.className = glow;
 
       if (lastDistance === null) {
         document.getElementById("status").textContent = "Tracking started...";
@@ -138,29 +126,27 @@
         document.getElementById("status").textContent = "Cooler ❄️";
       }
 
-      lastDistance = distance;
-
       if (distance <= 5 && !hasCelebrated) {
         triggerConfetti();
         hasCelebrated = true;
       }
+
+      lastDistance = distance;
     }
 
-    function showError(error) {
+    function handleError(error) {
       document.getElementById("status").textContent = `Error: ${error.message}`;
     }
 
-    waitForGeodesicReady(() => {
-      if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(updateLocation, showError, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 5000
-        });
-      } else {
-        document.getElementById("status").textContent = "Geolocation is not supported by this browser.";
-      }
-    });
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(updatePosition, handleError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      });
+    } else {
+      document.getElementById("status").textContent = "Geolocation not supported.";
+    }
   </script>
 </body>
 </html>
