@@ -2,165 +2,134 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Vibe Tracker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-  <script type="module">
-    import { Geodesic } from 'https://cdn.jsdelivr.net/npm/geographiclib-geodesic@1.52.0/+esm';
-    window.Geodesic = Geodesic;
-  </script>
+
+  <!-- Orbitron Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- GeographicLib for Geodesic calculation -->
+  <script src="https://cdn.jsdelivr.net/npm/geographiclib@1.52.3/geographiclib.min.js"></script>
+
   <style>
     body {
       margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at center, #0f0f2d 0%, #050510 100%);
+      color: #fff;
       font-family: 'Orbitron', sans-serif;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
-      background: linear-gradient(135deg, #2b1e4a, #3b2b6d);
-      color: #fff;
       overflow: hidden;
+    }
+
+    .title {
+      font-size: 2rem;
+      margin-bottom: 2rem;
       text-align: center;
     }
-    h1 {
-      margin-bottom: 1rem;
+
+    .tracker {
+      position: relative;
     }
-    #heat-icon {
-      font-size: 4rem;
-      text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+
+    .glow-frost, .glow-flame {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: url('https://cdn-icons-png.flaticon.com/512/535/535234.png') no-repeat center;
+      background-size: 60%;
+      animation: pulseGlow 2s infinite;
     }
+
     @keyframes pulseGlow {
-      0% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
-      50% { transform: scale(1.1); text-shadow: 0 0 20px rgba(255, 100, 0, 0.7), 0 0 30px rgba(255, 100, 0, 0.4); }
-      100% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+      0% {
+        box-shadow: 0 0 10px #fff, 0 0 20px #ad00ff, 0 0 30px #ad00ff;
+      }
+      50% {
+        box-shadow: 0 0 20px #fff, 0 0 40px #ad00ff, 0 0 60px #ad00ff;
+      }
+      100% {
+        box-shadow: 0 0 10px #fff, 0 0 20px #ad00ff, 0 0 30px #ad00ff;
+      }
     }
-    .glow-flame {
-      animation: pulseGlowFlame 2s infinite;
-    }
-    .glow-frost {
-      animation: pulseGlowFrost 2s infinite;
-      color: #00c8ff;
-    }
-    @keyframes pulseGlowFlame {
-      0% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 100, 0, 0.5); }
-      50% { transform: scale(1.2); text-shadow: 0 0 25px rgba(255, 100, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.5); }
-      100% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 100, 0, 0.5); }
-    }
-    @keyframes pulseGlowFrost {
-      0% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 200, 255, 0.5); }
-      50% { transform: scale(1.2); text-shadow: 0 0 25px rgba(0, 200, 255, 0.8), 0 0 40px rgba(0, 200, 255, 0.5); }
-      100% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 200, 255, 0.5); }
-    }
-    #distance {
-      font-size: 2rem;
-      color: #00f9ff;
-      margin: 1rem 0;
-    }
-    #status, #message {
-      margin-top: 1rem;
+
+    .status {
+      margin-top: 2rem;
       font-size: 1.2rem;
+      text-align: center;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 9999;
     }
   </style>
 </head>
 <body>
-  <div>
-    <h1>Vibe Tracker</h1>
-    <div id="heat-icon">🌡️</div>
-    <div id="distance">-- m</div>
-    <div id="status">Getting your location...</div>
-    <div id="message"></div>
+  <div class="title">Vibe Tracker</div>
+  <div class="tracker">
+    <div class="glow-flame" id="vibeIcon"></div>
   </div>
+  <div class="status" id="status">Waiting for location...</div>
+
+  <!-- Confetti Script -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <script>
-    const targetLat = 19.11426515101219;
-    const targetLon = 72.86528903659296;
-    let lastDistance = null;
-    let hasCelebrated = false;
+    const targetLat = 19.1334; // Replace with your actual target latitude
+    const targetLon = 72.9133; // Replace with your actual target longitude
+    const icon = document.getElementById('vibeIcon');
+    const statusText = document.getElementById('status');
+    let confettiFired = false;
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-      if (!window.Geodesic) {
-        console.error("Geodesic not loaded yet.");
-        return NaN;
-      }
-      const result = window.Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2);
-      return result.s12;
+      const geod = GeographicLib.Geodesic.WGS84;
+      const result = geod.Inverse(lat1, lon1, lat2, lon2);
+      return result.s12; // distance in meters
     }
 
-    function getEncouragingMessage(distance) {
-      if (distance > 100) return "You're on the way 🚶‍♀️";
-      if (distance > 50) return "Warming up 🔥";
-      if (distance > 20) return "Almost there! 💫";
-      if (distance > 5) return "🔥 You're right on target!";
-      return "🎯 You've caught the vibe!";
-    }
-
-    function getHeatIcon(distance, lastDistance) {
-      if (lastDistance === null) return "🌡️";
-      return distance < lastDistance ? "🔥" : "❄️";
-    }
-
-    function getGlowClass(distance, lastDistance) {
-      if (lastDistance === null) return "";
-      return distance < lastDistance ? "glow-flame" : "glow-frost";
-    }
-
-    function triggerConfetti() {
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.6 }
-      });
-    }
-
-    function updateLocation(position) {
+    function updatePosition(position) {
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
       const distance = getDistanceFromLatLonInMeters(lat, lon, targetLat, targetLon);
 
-      if (isNaN(distance)) {
-        document.getElementById("status").textContent = "Calculating distance...";
-        return;
-      }
+      statusText.textContent = `Distance: ${distance.toFixed(2)} meters`;
 
-      document.getElementById("distance").textContent = `${distance.toFixed(2)} m`;
-      document.getElementById("message").textContent = getEncouragingMessage(distance);
-
-      const icon = getHeatIcon(distance, lastDistance);
-      const glowClass = getGlowClass(distance, lastDistance);
-
-      const heatIconEl = document.getElementById("heat-icon");
-      heatIconEl.textContent = icon;
-      heatIconEl.className = glowClass;
-
-      if (lastDistance === null) {
-        document.getElementById("status").textContent = "Tracking started...";
-      } else if (distance < lastDistance) {
-        document.getElementById("status").textContent = "Warmer 🔥";
-      } else {
-        document.getElementById("status").textContent = "Cooler ❄️";
-      }
-
-      lastDistance = distance;
-
-      if (distance <= 5 && !hasCelebrated) {
-        triggerConfetti();
-        hasCelebrated = true;
+      if (distance <= 5 && !confettiFired) {
+        confettiFired = true;
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        icon.style.background = "url('https://cdn-icons-png.flaticon.com/512/535/535234.png') no-repeat center";
+        icon.style.backgroundSize = "60%";
+      } else if (distance > 5) {
+        confettiFired = false;
       }
     }
 
-    function showError(error) {
-      document.getElementById("status").textContent = `Error: ${error.message}`;
+    function handleError(error) {
+      statusText.textContent = "Error getting location: " + error.message;
     }
 
     if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(updateLocation, showError, {
+      navigator.geolocation.watchPosition(updatePosition, handleError, {
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: 5000
+        timeout: 10000
       });
     } else {
-      document.getElementById("status").textContent = "Geolocation is not supported by this browser.";
+      statusText.textContent = "Geolocation is not supported by this browser.";
     }
   </script>
 </body>
